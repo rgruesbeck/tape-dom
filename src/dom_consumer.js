@@ -5,23 +5,30 @@ var dmp = new DiffMatchPatch();
 var tape_css = require('./tape_css');
 
 
-function html_diff (a, b) {
-	var diff = dmp.diff_main(b, a);
+function html_diff(a, b) {
+    var diff = dmp.diff_main(b, a);
     dmp.diff_cleanupSemantic(diff);
-	var ret = '', tag;
-	diff.forEach(function(chunk){
-		switch (chunk[0]) {
-		case 0: tag = 'span'; break;
-		case 1: tag = 'ins'; break;
-		case -1: tag = 'del'; break;
-		}
-		ret += '<'+tag+'>' + chunk[1] + '</'+tag+'>';
-	});
-	return ret;
+    var ret = '',
+        tag;
+    diff.forEach(function(chunk) {
+        switch (chunk[0]) {
+            case 0:
+                tag = 'span';
+                break;
+            case 1:
+                tag = 'ins';
+                break;
+            case -1:
+                tag = 'del';
+                break;
+        }
+        ret += '<' + tag + '>' + chunk[1] + '</' + tag + '>';
+    });
+    return ret;
 }
 
 
-function startTestDiv (row) {
+function startTestDiv(row) {
     var test_div = document.createElement('DIV');
     test_div.id = row.id;
     test_div.setAttribute('class', 'test');
@@ -38,9 +45,9 @@ function startTestDiv (row) {
 }
 
 
-function assertDiv (row, root) {
+function assertDiv(row, root) {
     var p = document.createElement('P');
-    p.setAttribute('class', 'assert '+(row.ok?'ok':'fail'));
+    p.setAttribute('class', 'assert ' + (row.ok ? 'ok' : 'fail'));
 
     var ok = document.createElement('SPAN');
     ok.setAttribute('class', 'ok');
@@ -54,11 +61,11 @@ function assertDiv (row, root) {
         p.appendChild(nam);
     }
     root.appendChild(p);
-    p.scrollIntoView({block: "end", behavior: "smooth"});
+    p.scrollIntoView({ block: "end", behavior: "smooth" });
     return p;
 }
 
-function commentDiv (row, root) {
+function commentDiv(row, root) {
     var p = document.createElement('P');
     p.setAttribute('class', 'comment');
     p.appendChild(document.createTextNode(row));
@@ -73,15 +80,15 @@ function endDiv(row, current_test) {
     return p;
 }
 
-function assertFailDiv (row, assert_element) {
+function assertFailDiv(row, assert_element) {
     var actual = row.actual;
     var expected = row.expected;
     if (actual && expected &&
-        typeof(actual)=='object' &&
-        typeof(expected)=='object') {
-            actual = JSON.stringify(actual);
-            expected = JSON.stringify(expected);
-        }
+        typeof(actual) == 'object' &&
+        typeof(expected) == 'object') {
+        actual = JSON.stringify(actual);
+        expected = JSON.stringify(expected);
+    }
 
     var actual_span = document.createElement('SPAN');
     actual_span.setAttribute('class', 'actual');
@@ -105,9 +112,8 @@ function assertFailDiv (row, assert_element) {
     }
 
     if (actual && expected &&
-        actual.constructor==String &&
-        expected.constructor==String)
-    {
+        actual.constructor == String &&
+        expected.constructor == String) {
         var diff = document.createElement('P');
         diff.setAttribute('class', 'diff');
         diff.innerHTML = html_diff(actual, expected);
@@ -117,41 +123,87 @@ function assertFailDiv (row, assert_element) {
 }
 
 var test_root, current_test;
-if (typeof(document)==='object') {
+if (typeof(document) === 'object') {
     test_root = document.getElementById('tests');
     if (!test_root) {
         test_root = document.createElement('div');
-        test_root.setAttribute('id','tests');
+        test_root.setAttribute('id', 'tests');
         document.body.appendChild(test_root);
     }
     current_test = test_root;
 }
 
-function add_some_dom (row) {
-    if (row.type==='test') {
+function add_some_dom(row) {
+    if (row.type === 'test') {
         current_test = startTestDiv(row, current_test);
-    } else if (row.type==='assert') {
+    } else if (row.type === 'assert') {
         var assert_element = assertDiv(row, current_test);
 
         if (!row.ok) {
             assertFailDiv(row, assert_element);
         }
-    } else if (row.type==='end') {
+    } else if (row.type === 'end') {
         endDiv(row, current_test);
         current_test = current_test.parentNode;
-    } else if (row.constructor===String) {
+    } else if (row.constructor === String) {
         commentDiv(row, current_test);
     } else {
         console.warn('tape-dom row', row.type, row);
     }
 }
 
-function stream (tape) {
-    var stream = tape.createStream({ objectMode: true });
-    stream.on('data', add_some_dom);
+function print_row(row) {
+    if (row.type === 'test') {
+        print(`TEST ${row.id}: ${row.name}`);
+    } else if (row.type === 'assert') {
+        if (row.ok) {
+            print(`OK ${row.id}: ${row.name}`, 'success');
+        } else {
+            print(`FAIL ${row.id}: ${row.name}`, 'error');
+            print(`EXPECTED ${row.id}: ${row.expected}`, 'error');
+            print(`ACTUAL ${row.id}: ${row.actual}`, 'error');
+        }
+    } else if (row.type === 'end') {
+        print(`END \n\n`);
+    } else if (row.constructor === String) {
+        print(`// ${row}`, 'success');
+    } else {
+        console.warn('tape-dom row', row.type, row);
+    }
 }
 
-function installCSS () {
+function print(message, color = 'black') {
+    switch (color) {
+        case 'success':
+            color = 'Green';
+            break;
+        case 'info':
+            color = 'Blue';
+            break;
+        case 'error':
+            color = 'Red';
+            break;
+        case 'warning':
+            color = 'Orange';
+            break;
+        default:
+            color = color;
+    }
+
+    console.log(`%c${message}`, `color:${color}`);
+}
+
+function handle_data(row) {
+    add_some_dom(row);
+    print_row(row);
+}
+
+function stream(tape) {
+    var stream = tape.createStream({ objectMode: true });
+    stream.on('data', handle_data);
+}
+
+function installCSS() {
     var link = document.createElement('style');
     link.setAttribute("type", "text/css");
     var css_body = document.createTextNode(tape_css);
@@ -159,8 +211,8 @@ function installCSS () {
     document.head.appendChild(link);
 }
 
-function init (tape) {
-    if (typeof(window)==='object') {
+function init(tape) {
+    if (typeof(window) === 'object') {
         installCSS();
         stream(tape);
     }
